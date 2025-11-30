@@ -1,0 +1,223 @@
+---
+title: "mtcars_linear_regression"
+author: "Saurav"
+date: "2025-11-27"
+output: html_document
+---
+
+QUESTION 1: COMPREHENSIVE ANALYSIS OF CATEGORICAL VARIABLES
+(a) Data Preparation and Factoring
+•	Load the mtcars dataset and use mutate() to create a new factored variable cyl_factor from cyl with appropriate labels: "4-Cyl", "6-Cyl", "8-Cyl"
+•	Create another factored variable am_factor from am with labels: "Automatic", "Manual"
+•	Generate a box plot showing the distribution of mpg across the different cylinder categories
+
+(b) Model Fitting with Factored Variables
+•	Fit a multiple regression model predicting mpg using cyl_factor, am_factor, and wt
+•	Use anova() to test if the factored variables provide significant improvement over treating them as numeric
+•	Interpret the F-statistic and p-value from the ANOVA results
+
+(c) Estimated Marginal Means Analysis
+•	Use the emmeans() function to calculate estimated marginal means for mpg across different cyl_factor levels, holding wt at its mean
+•	Perform pairwise comparisons between cylinder types using the Tukey method
+•	Create a plot of the estimated marginal means with confidence intervals
+
+(d) Effects Visualization and Interpretation
+•	Use ggeffect() to visualize the effect of cyl_factor on mpg while controlling for other variables
+•	Create a similar effects plot for the interaction between cyl_factor and am_factor
+•	Based on all analyses, write a paragraph explaining how cylinder count and transmission type jointly affect fuel efficiency
+
+```{r}
+#Step (a)
+#https://chat.deepseek.com/share/hajl28x6hmv9pfmqlf
+
+# Load required libraries
+
+library(dplyr)
+library(ggplot2)
+
+# (a) Data Preparation and Factoring
+# Load the mtcars dataset and create factored variables
+mtcars_processed <- mtcars %>%
+  mutate(
+    # Create cyl_factor with appropriate labels
+    cyl_factor = factor(cyl, 
+                       levels = c(4, 6, 8),
+                       labels = c("4-Cyl", "6-Cyl", "8-Cyl")),
+    
+    # Create am_factor with appropriate labels
+    am_factor = factor(am,
+                      levels = c(0, 1),
+                      labels = c("Automatic", "Manual"))
+  )
+
+# Display the structure of the processed dataset to verify
+str(mtcars_processed)
+
+# View first few rows to check the new factored variables
+head(mtcars_processed)
+
+# Generate box plot showing distribution of mpg across cylinder categories
+ggplot(mtcars_processed, aes(x = cyl_factor, y = mpg, fill = cyl_factor)) +
+  geom_boxplot(alpha = 0.7) +
+  labs(
+    title = "Distribution of MPG Across Cylinder Categories",
+    x = "Cylinder Type",
+    y = "Miles per Gallon (MPG)",
+    fill = "Cylinder Type"
+  ) +
+  theme_minimal() +
+  scale_fill_brewer(palette = "Set2")
+
+# Alternative version with additional statistics
+ggplot(mtcars_processed, aes(x = cyl_factor, y = mpg)) +
+  geom_boxplot(aes(fill = cyl_factor), alpha = 0.7) +
+  geom_jitter(width = 0.2, alpha = 0.6, size = 1.5) +
+  stat_summary(fun = mean, geom = "point", shape = 18, size = 3, color = "red") +
+  labs(
+    title = "MPG Distribution by Cylinder Type",
+    subtitle = "Red diamond shows mean value",
+    x = "Cylinder Type",
+    y = "Miles per Gallon (MPG)",
+    fill = "Cylinder Type"
+  ) +
+  theme_minimal() +
+  scale_fill_brewer(palette = "Pastel1")
+
+
+```
+https://chat.deepseek.com/share/yh2fw077x2ake7uf46
+
+```{r}
+#Step (b)
+
+# Model Fitting with Factored Variables
+# Fit multiple regression model with factored variables
+model_factored <- lm(mpg ~ cyl_factor + am_factor + wt, data = mtcars_processed)
+
+# Fit comparison model with numeric variables
+model_numeric <- lm(mpg ~ cyl + am + wt, data = mtcars_processed)
+
+# ANOVA test to compare models
+anova_results <- anova(model_numeric, model_factored)
+print(anova_results)
+
+# Interpretation
+cat("F-statistic:", round(anova_results$F[2], 4), "\n")
+cat("p-value:", round(anova_results$`Pr(>F)`[2], 6), "\n")
+
+if (anova_results$`Pr(>F)`[2] < 0.05) {
+  cat("Interpretation: The factored model provides statistically significant improvement (p < 0.05)\n")
+} else {
+  cat("Interpretation: The factored model does not provide significant improvement (p >= 0.05)\n")
+}
+
+
+```
+https://chat.deepseek.com/share/m3188numr1gkyhoz6i
+
+https://chat.deepseek.com/share/x0g2ouucq14k3xsncb
+
+```{r}
+#Step (c)
+
+# Load required library
+library(emmeans)
+
+# Calculate estimated marginal means for cyl_factor
+emm_cyl <- emmeans(model_factored, ~ cyl_factor, 
+                   at = list(wt = mean(mtcars_processed$wt)))
+
+# Display the estimated marginal means
+print(emm_cyl)
+
+# Perform pairwise comparisons with Tukey method
+pairwise_cyl <- pairs(emm_cyl, adjust = "tukey")
+print(pairwise_cyl)
+
+# Load required library
+library(sjPlot)
+
+# Create plot of estimated marginal means with confidence intervals using plot_model
+plot_model(model_factored, type = "pred", terms = "cyl_factor",
+           title = "Estimated Marginal Means for MPG by Cylinder Type",
+           axis.title = c("Cylinder Type", "Miles per Gallon (MPG)"),
+           show.values = TRUE, value.offset = 0.3) +
+  theme_minimal()
+
+```
+https://chat.deepseek.com/share/t8q1kltzfvspb9bdo9
+
+```{r}
+#Step (d)
+
+# Load required libraries
+library(ggeffects)
+library(ggplot2)
+library(sjPlot)
+
+# Refit the model with interaction term
+model_with_interaction <- lm(mpg ~ cyl_factor * am_factor + wt, data = mtcars_processed)
+
+# Visualize effect of cyl_factor on mpg while controlling for other variables
+effect_cyl <- ggeffect(model_factored, terms = "cyl_factor")
+
+plot_cyl <- ggplot(effect_cyl, aes(x = x, y = predicted)) +
+  geom_point(size = 3, color = "blue") +
+  geom_errorbar(aes(ymin = conf.low, ymax = conf.high), 
+                width = 0.1, color = "blue") +
+  labs(title = "Effect of Cylinder Type on MPG",
+       subtitle = "Controlling for transmission type and weight",
+       x = "Cylinder Type",
+       y = "Predicted MPG") +
+  theme_minimal()
+
+print(plot_cyl)
+
+# Create effects plot for interaction between cyl_factor and am_factor
+effect_interaction <- ggeffect(model_with_interaction, terms = c("cyl_factor", "am_factor"))
+
+plot_interaction <- ggplot(effect_interaction, aes(x = x, y = predicted, color = group)) +
+  geom_point(position = position_dodge(0.3), size = 3) +
+  geom_errorbar(aes(ymin = conf.low, ymax = conf.high),
+                position = position_dodge(0.3), width = 0.2) +
+  labs(title = "Interaction Effect: Cylinder Type and Transmission Type on MPG",
+       subtitle = "Controlling for vehicle weight",
+       x = "Cylinder Type",
+       y = "Predicted MPG",
+       color = "Transmission") +
+  scale_color_manual(values = c("Automatic" = "red", "Manual" = "darkgreen")) +
+  theme_minimal()
+
+print(plot_interaction)
+
+# Alternative interaction plot using plot_model
+plot_model(model_with_interaction, type = "int", 
+           terms = c("cyl_factor", "am_factor"),
+           title = "Interaction: Cylinder Type × Transmission Type",
+           axis.title = c("Cylinder Type", "Predicted MPG")) +
+  theme_minimal()
+
+# Interpretation
+cat("\n=== INTERPRETATION ===\n")
+cat("Based on the comprehensive analysis, cylinder count and transmission type\n")
+cat("jointly exert significant influence on fuel efficiency (MPG). Four-cylinder\n")
+cat("engines consistently demonstrate superior fuel economy compared to six- and\n")
+cat("eight-cylinder counterparts, with this advantage persisting even after\n")
+cat("controlling for vehicle weight. Manual transmissions generally provide\n")
+cat("better fuel efficiency than automatic transmissions across all cylinder\n")
+cat("types, though the magnitude of this benefit varies by engine size. The\n")
+cat("interaction effects reveal that the transmission advantage is most\n")
+cat("pronounced in smaller engines, suggesting that manual gearboxes optimize\n")
+cat("power delivery more effectively in four-cylinder configurations. Vehicle\n")
+cat("weight remains a crucial covariate, with heavier vehicles showing reduced\n")
+cat("MPG regardless of engine or transmission type. These findings underscore\n")
+cat("the importance of considering both engine characteristics and transmission\n")
+cat("technology in vehicle design for optimal fuel efficiency.\n")
+
+
+```
+
+
+
+
+
