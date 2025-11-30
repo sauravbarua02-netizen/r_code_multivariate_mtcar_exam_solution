@@ -1,0 +1,470 @@
+---
+title: "Plant_growth"
+author: "Saurav"
+date: "2025-11-30"
+output: html_document
+---
+
+Multivariate Regression Analysis Exam Question
+________________________________________
+Question: Analysis of Plant Growth Dataset
+Using the built-in PlantGrowth dataset in R, perform a comprehensive multivariate regression analysis to examine the factors affecting plant biomass production.
+Background
+The PlantGrowth dataset contains results from an experiment to compare yields (as measured by dried weight of plants) obtained under a control condition and two different treatment conditions. You will enhance this analysis by incorporating additional simulated variables to perform multivariate regression.
+________________________________________
+(a) Data Preparation and Exploratory Analysis (10 marks)
+Load and prepare the PlantGrowth dataset for analysis:
+•	Load the dataset and examine its structure
+•	Create two additional variables: 
+o	nutrients: A numeric variable representing nutrient levels (simulate using set.seed(123); nutrients = rnorm(30, mean = 50, sd = 10))
+o	water: A numeric variable representing water amount in ml (simulate using set.seed(456); water = rnorm(30, mean = 100, sd = 20))
+•	Ensure the group variable is properly formatted as a factor
+•	Provide summary statistics for all variables: weight, group, nutrients, and water
+________________________________________
+(b) Model Building and Presentation (15 marks)
+Build a multivariate linear regression model with the following specifications:
+•	Dependent variable: weight (dried weight of plants)
+•	Independent variables: nutrients, water, group (treatment group), and the interaction between nutrients and group
+Using the tbl_regression() function from the gtsummary package, create a professionally formatted regression table that includes:
+•	Coefficient estimates
+•	95% confidence intervals
+•	P-values
+•	Model fit statistics (R-squared and adjusted R-squared)
+________________________________________
+(c) Estimated Marginal Means Analysis (15 marks)
+Using the emmeans package, calculate and interpret:
+•	Estimated marginal means for the three treatment groups (group) using the "response" type (or "prop" if appropriate for your model specification)
+•	Pairwise contrasts between all treatment groups to determine if there are significant differences in plant weight
+Display the results in a clear format and provide a brief interpretation of which treatment groups differ significantly from each other.
+________________________________________
+(d) Trend Analysis (15 marks)
+Using the emtrends() function from the emmeans package:
+•	Calculate the trends (slopes) of weight with respect to nutrients for each treatment group
+•	Specify var = "nutrients" and specs = "group"
+•	Test whether the slopes differ significantly among the three treatment groups
+•	Interpret the results in the context of the interaction effect between nutrients and treatment group
+________________________________________
+(e) Visualization of Interaction Effects (15 marks)
+Using the plot_model() function from the sjPlot package:
+•	Create an interaction plot showing how the relationship between nutrient levels (nutrients) and plant weight (weight) differs by treatment group (group)
+•	Use type = "int" to specify an interaction plot
+•	Ensure the plot is properly labeled with appropriate titles, axis labels, and legend
+•	Briefly describe what the plot reveals about the interaction effect and how different treatments modify the nutrient-weight relationship
+________________________________________
+(f) Variable Importance Analysis (15 marks)
+Using the effectsize package:
+•	Calculate eta-squared (η²) values for all predictors in your model using the eta_squared() function
+•	Interpret the eta-squared values to determine the relative importance of each predictor
+•	Comment on which variable(s) have the strongest effect on plant weight
+•	Discuss whether the interaction term contributes meaningfully to the model
+________________________________________
+(g) Custom Visualization of Variable Importance (15 marks)
+Using ggplot2:
+•	Create a horizontal bar plot displaying the eta-squared values for each predictor
+•	The plot should include: 
+o	Predictors on the y-axis (for better readability)
+o	Eta-squared values on the x-axis
+o	Color-coded bars to distinguish between main effects and interaction effects
+o	Clear labels, a descriptive title, and subtitle
+o	A professional theme (e.g., theme_minimal() or theme_classic())
+o	Value labels on or near each bar
+Provide a comprehensive interpretation of which variables are most important in predicting plant weight based on your visualization.
+```{r}
+# ============================================================================
+# Multivariate Regression Analysis: Plant Growth Dataset
+# Complete Solution Code
+# ============================================================================
+
+# Load required packages
+# Install packages if not already installed
+packages <- c("tidyverse", "emmeans", "gtsummary","sjPlot", "effectsize")
+for (pkg in packages) {
+  if (!require(pkg, character.only = TRUE)) {
+    install.packages(pkg)
+    library(pkg, character.only = TRUE)
+  }
+}
+
+# ============================================================================
+# (a) Data Preparation and Exploratory Analysis
+# ============================================================================
+
+# Load the PlantGrowth dataset
+data("PlantGrowth")
+
+# Set seed for reproducibility
+set.seed(123)
+
+# Create additional variables
+PlantGrowth$nutrients <- rnorm(30, mean = 50, sd = 10)
+
+set.seed(456)
+PlantGrowth$water <- rnorm(30, mean = 100, sd = 20)
+
+# Examine the structure of the dataset
+str(PlantGrowth)
+
+# Ensure group is a factor
+PlantGrowth$group <- as.factor(PlantGrowth$group)
+
+# Summary statistics
+summary(PlantGrowth)
+
+# Detailed summary by variable
+cat("\n=== Summary Statistics ===\n")
+cat("\nWeight (dried weight of plants):\n")
+print(summary(PlantGrowth$weight))
+
+cat("\nNutrients:\n")
+print(summary(PlantGrowth$nutrients))
+
+cat("\nWater:\n")
+print(summary(PlantGrowth$water))
+
+cat("\nGroup (Treatment):\n")
+print(table(PlantGrowth$group))
+
+# Additional descriptive statistics
+library(dplyr)
+PlantGrowth %>%
+  group_by(group) %>%
+  summarise(
+    n = n(),
+    mean_weight = mean(weight),
+    sd_weight = sd(weight),
+    mean_nutrients = mean(nutrients),
+    mean_water = mean(water)
+  )
+```
+
+
+```{r}
+# ============================================================================
+# (b) Model Building and Presentation
+# ============================================================================
+
+# Build the multivariate regression model with interaction
+model <- lm(weight ~ nutrients + water + group + nutrients:group, 
+            data = PlantGrowth)
+
+# Display model summary
+summary(model)
+
+# Create professional regression table using tbl_regression
+library(gtsummary)
+regression_table <- tbl_regression(
+  model,
+  intercept = TRUE,
+  estimate_fun = function(x) style_number(x, digits = 3),
+  pvalue_fun = function(x) style_pvalue(x, digits = 3)
+) %>%
+  add_glance_table(
+    include = c(r.squared, adj.r.squared,nobs, AIC, BIC)
+  ) %>%
+  bold_p(t = 0.05) %>%
+  bold_labels()
+regression_table
+```
+
+
+```{r}
+# ============================================================================
+# (c) Estimated Marginal Means Analysis
+# ============================================================================
+
+library(emmeans)
+
+# Calculate estimated marginal means for treatment groups
+emm_group <- emmeans(model, specs = "group", type = "response")
+
+# Display EMMs
+cat("\n=== Estimated Marginal Means by Group ===\n")
+print(emm_group)
+
+# Calculate pairwise contrasts
+contrasts_group <- contrast(emm_group, method = "pairwise", adjust = "tukey")
+
+# Display contrasts
+cat("\n=== Pairwise Contrasts Between Groups ===\n")
+print(contrasts_group)
+
+# Summary of contrasts
+cat("\n=== Summary of Contrasts ===\n")
+print(summary(contrasts_group))
+
+# Visualize EMMs
+plot(emm_group) + 
+  labs(title = "Estimated Marginal Means by Treatment Group",
+       x = "Estimated Marginal Mean Weight",
+       y = "Treatment Group") +
+  theme_minimal()
+```
+
+
+```{r}
+# ============================================================================
+# (d) Trend Analysis
+# ============================================================================
+
+# Calculate trends (slopes) of weight with respect to nutrients by group
+trends <- emtrends(model, specs = "group", var = "nutrients")
+
+# Display trends
+cat("\n=== Trends of Weight vs Nutrients by Group ===\n")
+print(trends)
+
+# Test differences in slopes between groups
+trends_contrast <- contrast(trends, method = "pairwise", adjust = "tukey")
+
+# Display trend contrasts
+cat("\n=== Pairwise Comparisons of Slopes ===\n")
+print(trends_contrast)
+
+# Summary of trend contrasts
+cat("\n=== Summary of Slope Differences ===\n")
+print(summary(trends_contrast))
+
+# Interpretation
+cat("\n=== Interpretation ===\n")
+cat("The trends show how the slope of the nutrients-weight relationship\n")
+cat("differs across treatment groups. Significant differences indicate\n")
+cat("that the effect of nutrients on plant weight varies by treatment.\n")
+```
+
+
+```{r}
+# ============================================================================
+# (e) Visualization of Interaction Effects
+# ============================================================================
+
+library(sjPlot)
+
+# Create interaction plot
+interaction_plot <- plot_model(
+  model, 
+  type = "int",
+  terms = c("nutrients", "group"),
+  title = "Interaction Effect: Nutrients × Treatment Group on Plant Weight",
+  axis.title = c("Nutrient Levels", "Plant Weight (dried)"),
+  legend.title = "Treatment Group",
+  colors = c("#E69F00", "#56B4E9", "#009E73")
+) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    legend.position = "right"
+  )
+
+# Display the plot
+print(interaction_plot)
+
+# Alternative interaction plot using ggplot2
+ggplot(PlantGrowth, aes(x = nutrients, y = weight, color = group, fill = group)) +
+  geom_point(size = 3, alpha = 0.6) +
+  geom_smooth(method = "lm", se = TRUE, alpha = 0.2) +
+  scale_color_manual(values = c("#E69F00", "#56B4E9", "#009E73")) +
+  scale_fill_manual(values = c("#E69F00", "#56B4E9", "#009E73")) +
+  labs(
+    title = "Interaction Between Nutrients and Treatment Group",
+    subtitle = "Effect on Plant Weight",
+    x = "Nutrient Levels",
+    y = "Plant Weight (dried)",
+    color = "Treatment Group",
+    fill = "Treatment Group"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 14),
+    plot.subtitle = element_text(hjust = 0.5, size = 11),
+    legend.position = "bottom"
+  )
+```
+
+
+```{r}
+# ============================================================================
+# (f) Variable Importance Analysis
+# ============================================================================
+
+library(effectsize)
+
+# Calculate eta-squared values
+eta_sq <- eta_squared(model, partial = TRUE, ci = 0.95)
+
+# Display eta-squared values
+cat("\n=== Eta-Squared Values (Variable Importance) ===\n")
+print(eta_sq)
+
+# Interpret the values
+cat("\n=== Interpretation of Eta-Squared Values ===\n")
+cat("Eta-squared represents the proportion of variance explained by each predictor.\n")
+cat("Values interpretation:\n")
+cat("  0.01 - 0.06: Small effect\n")
+cat("  0.06 - 0.14: Medium effect\n")
+cat("  > 0.14: Large effect\n\n")
+
+# Create a summary data frame
+eta_summary <- as.data.frame(eta_sq)
+print(eta_summary)
+```
+
+
+```{r}
+# ============================================================================
+# (g) Custom Visualization of Variable Importance
+# ============================================================================
+
+# Prepare data for visualization
+eta_plot_data <- as.data.frame(eta_sq) %>%
+  mutate(
+    Parameter = factor(Parameter, levels = Parameter[order(Eta2_partial)]),
+    Effect_Type = ifelse(grepl(":", Parameter), "Interaction", "Main Effect")
+  )
+
+# Create horizontal bar plot
+importance_plot <- ggplot(eta_plot_data, 
+                          aes(x = Eta2_partial, y = Parameter, fill = Effect_Type)) +
+  geom_col(width = 0.7, alpha = 0.8) +
+  geom_text(aes(label = sprintf("%.4f", Eta2_partial)), 
+            hjust = -0.1, size = 4, fontface = "bold") +
+  scale_fill_manual(
+    values = c("Main Effect" = "#2E86AB", "Interaction" = "#A23B72"),
+    name = "Effect Type"
+  ) +
+  scale_x_continuous(
+    expand = expansion(mult = c(0, 0.15)),
+    labels = scales::number_format(accuracy = 0.01)
+  ) +
+  labs(
+    title = "Variable Importance in Predicting Plant Weight",
+    subtitle = "Partial Eta-Squared (η²) Values",
+    x = "Partial Eta-Squared (η²)",
+    y = "Predictor Variables",
+    caption = "Higher values indicate greater importance in explaining variance"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 16),
+    plot.subtitle = element_text(hjust = 0.5, size = 12, color = "gray40"),
+    plot.caption = element_text(hjust = 0.5, size = 9, color = "gray50"),
+    axis.title = element_text(face = "bold"),
+    legend.position = "bottom",
+    legend.title = element_text(face = "bold"),
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor = element_blank()
+  )
+
+# Display the plot
+print(importance_plot)
+
+# Alternative visualization: Lollipop chart
+lollipop_plot <- ggplot(eta_plot_data, 
+                        aes(x = Eta2_partial, y = Parameter, color = Effect_Type)) +
+  geom_segment(aes(x = 0, xend = Eta2_partial, y = Parameter, yend = Parameter),
+               size = 1.5, alpha = 0.7) +
+  geom_point(size = 5, alpha = 0.9) +
+  geom_text(aes(label = sprintf("%.4f", Eta2_partial)), 
+            hjust = -0.3, size = 3.5, fontface = "bold", color = "black") +
+  scale_color_manual(
+    values = c("Main Effect" = "#2E86AB", "Interaction" = "#A23B72"),
+    name = "Effect Type"
+  ) +
+  scale_x_continuous(
+    expand = expansion(mult = c(0, 0.15)),
+    labels = scales::number_format(accuracy = 0.01)
+  ) +
+  labs(
+    title = "Variable Importance Analysis",
+    subtitle = "Partial Eta-Squared (η²) Values for Plant Weight Predictors",
+    x = "Partial Eta-Squared (η²)",
+    y = "Predictor Variables"
+  ) +
+  theme_classic(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 16),
+    plot.subtitle = element_text(hjust = 0.5, size = 11, color = "gray40"),
+    axis.title = element_text(face = "bold"),
+    legend.position = "bottom",
+    legend.title = element_text(face = "bold")
+  )
+
+# Display the lollipop plot
+print(lollipop_plot)
+```
+
+
+```{r}
+# ============================================================================
+# Additional Analysis: Model Diagnostics
+# ============================================================================
+
+cat("\n=== Model Diagnostics ===\n")
+
+# Diagnostic plots
+par(mfrow = c(2, 2))
+plot(model)
+par(mfrow = c(1, 1))
+
+# Check for multicollinearity
+library(car)
+vif(model)
+
+# ============================================================================
+# Summary and Interpretation
+# ============================================================================
+
+cat("\n=== FINAL SUMMARY ===\n")
+cat("\n1. Model Performance:\n")
+cat("   R-squared:", sprintf("%.4f", summary(model)$r.squared), "\n")
+cat("   Adjusted R-squared:", sprintf("%.4f", summary(model)$adj.r.squared), "\n")
+
+cat("\n2. Most Important Predictors (based on Eta-squared):\n")
+eta_sorted <- eta_plot_data[order(-eta_plot_data$Eta2_partial), ]
+for(i in 1:nrow(eta_sorted)) {
+  cat("   ", i, ". ", eta_sorted$Parameter[i], 
+      " (η² = ", sprintf("%.4f", eta_sorted$Eta2_partial[i]), ")\n", sep = "")
+}
+
+cat("\n3. Significant Effects (p < 0.05):\n")
+coef_summary <- summary(model)$coefficients
+sig_effects <- rownames(coef_summary)[coef_summary[, 4] < 0.05]
+cat("   ", paste(sig_effects, collapse = ", "), "\n")
+
+cat("\n4. Interaction Effect:\n")
+if(any(grepl(":", sig_effects))) {
+  cat("   The interaction between nutrients and group is significant,\n")
+  cat("   indicating that the effect of nutrients on plant weight\n")
+  cat("   depends on the treatment group.\n")
+} else {
+  cat("   The interaction between nutrients and group is not significant.\n")
+}
+
+cat("\n=== Analysis Complete ===\n")
+
+# Save the workspace (optional)
+# save.image("plant_growth_analysis.RData")
+
+# Export plots (optional)
+# ggsave("importance_plot.png", importance_plot, width = 10, height = 6, dpi = 300)
+# ggsave("lollipop_plot.png", lollipop_plot, width = 10, height = 6, dpi = 300)
+
+
+
+
+```
+
+Expected Output:
+•	Part (a): Data structure and summary statistics
+•	Part (b): Professional regression table with model fit statistics
+•	Part (c): Estimated marginal means and pairwise contrasts
+•	Part (d): Trend analysis showing slopes by group
+•	Part (e): Interaction plots (two versions)
+•	Part (f): Eta-squared values with interpretation
+•	Part (g): Two types of importance visualizations (bar plot and lollipop chart)
+•	Bonus: Model diagnostics and comprehensive summary
+Notes:
+•	All random number generation uses fixed seeds for reproducibility
+•	The code includes extensive comments for clarity
+•	Multiple visualization options are provided
+•	Diagnostic checks are included for model validation
+•	All outputs are formatted for professional presentation
